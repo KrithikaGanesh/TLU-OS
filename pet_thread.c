@@ -44,6 +44,11 @@ struct exec_ctx {
 
 struct pet_thread {
     /* Implement this */
+    /*ULT*/
+    pet_thread_id_t thread_id;
+    thread_run_state_t state;
+    struct exec_ctx context;
+
 };
 
 
@@ -68,9 +73,10 @@ get_thread(pet_thread_id_t thread_id)
     if (thread_id == PET_MASTER_THREAD_ID) {
 	return &(master_dummy_thread);
     }
-
-
     /* Implement this */
+
+    /*need to search for the thread id and return*/
+
     
     return NULL;
 }
@@ -81,10 +87,10 @@ get_thread_id(struct pet_thread * thread)
     if (thread == &(master_dummy_thread)) {
 	return PET_MASTER_THREAD_ID;
     }
-
+    else
     /* Implement this */
-    
-    return 0;
+        /*ULT*/
+        return thread->thread_id;
 }
 
 
