@@ -43,21 +43,19 @@ struct exec_ctx {
 
 
 struct pet_thread {
-    /* Implement this */
-    /*ULT*/
-    pet_thread_id_t thread_id;
-    thread_run_state_t state;
     struct exec_ctx context;
-
+    int thread_id;
+    thread_run_state_t state;
+    /* Implement this */
 };
-
 
 
 static pet_thread_id_t current     = PET_MASTER_THREAD_ID;
 struct pet_thread      master_dummy_thread;
 
 static LIST_HEAD(thread_list);
-
+static struct list_head readyList;
+static int thread_ids = 0;
 
 extern void __switch_to_stack(void            * tgt_stack,
 			      void            * saved_stack,
@@ -98,9 +96,9 @@ int
 pet_thread_init(void)
 {
     printf("Initializing Pet Thread library\n");
-
+    list_head_init(&readyList);
     /* Implement this */
-    
+
     return 0;
 }
 
@@ -148,21 +146,24 @@ __thread_invoker(struct pet_thread * thread)
 
 int
 pet_thread_create(pet_thread_id_t * thread_id,
-		  pet_thread_fn_t   func,
-		  void            * arg)
+                  pet_thread_fn_t   func,
+                  void            * arg)
 {
     struct pet_thread * new_thread;
-    
+    new_thread = (struct pet_thread *)malloc(sizeof(struct pet_thread));
+    new_thread->thread_id = thread_ids++;
+    new_thread->state = PET_THREAD_READY;
+    new_thread->context.rip = (uint64_t)&func;
+
     /* Implement this */
-    
+
     DEBUG("Created new Pet Thread (%p):\n", new_thread);
     DEBUG("--Add thread state here--\n");
     __dump_stack(new_thread);
 
-    
+
     return 0;
 }
-
 
 void
 pet_thread_cleanup(pet_thread_id_t prev_id,
