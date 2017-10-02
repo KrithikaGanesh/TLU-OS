@@ -44,8 +44,9 @@ struct exec_ctx {
 
 struct pet_thread {
     struct exec_ctx context;
-    int thread_id;
+    pet_thread_id_t thread_id;
     thread_run_state_t state;
+    void * stackPtr;
     /* Implement this */
 };
 
@@ -55,7 +56,8 @@ struct pet_thread      master_dummy_thread;
 
 static LIST_HEAD(thread_list);
 static struct list_head readyList;
-static int thread_ids = 0;
+static int thread_ids = 1;
+struct pet_thread * master_thread;
 
 extern void __switch_to_stack(void            * tgt_stack,
 			      void            * saved_stack,
@@ -96,7 +98,10 @@ int
 pet_thread_init(void)
 {
     printf("Initializing Pet Thread library\n");
-    list_head_init(&readyList);
+    master_thread = (struct pet_thread *)malloc(sizeof(struct pet_thread));
+    master_thread->thread_id = PET_MASTER_THREAD_ID;
+    printf("Initializing Pet Thread library\n");
+    //list_head_init(&readyList);
     /* Implement this */
 
     return 0;
@@ -151,10 +156,10 @@ pet_thread_create(pet_thread_id_t * thread_id,
 {
     struct pet_thread * new_thread;
     new_thread = (struct pet_thread *)malloc(sizeof(struct pet_thread));
-    new_thread->thread_id = thread_ids++;
+    new_thread->thread_id = (pet_thread_id_t)thread_ids++;
     new_thread->state = PET_THREAD_READY;
-    new_thread->context.rip = (uint64_t)&func;
-
+    new_thread->stackPtr = &func;
+    __switch_to_stack(new_thread->stackPtr,master_thread->stackPtr,new_thread->thread_id,master_thread->thread_id);
     /* Implement this */
 
     DEBUG("Created new Pet Thread (%p):\n", new_thread);
