@@ -129,8 +129,12 @@ static void
 __dump_stack(struct pet_thread * thread)
 {
 
-    /* Implement this */
-    
+    printf("DumpStack> Thread id %lu \n", thread->id);
+    printf("DumpStack>  TCB pointer %p \n", thread);
+    printf("DumpStack> Stack block pointer %p \n", thread->stackblockPtr);
+    printf("DumpStack>  Stack pointer %p \n", thread->stackPtr);
+    printf("DumpStack>  Function Pointer %p \n", *(pet_thread_fn_t)(char *)thread->stackPtr+0);
+
     return;
 }
 
@@ -171,16 +175,37 @@ pet_thread_create(pet_thread_id_t * thread_id,
 		  pet_thread_fn_t   func,
 		  void            * arg)
 {
-    struct pet_thread * new_thread;
-    
-    /* Implement this */
-    
-    DEBUG("Created new Pet Thread (%p):\n", new_thread);
-    DEBUG("--Add thread state here--\n");
-    __dump_stack(new_thread);
+    int index = nof_running_threads+1;
+    if(index <= PET_MAX_TCOUNT) {
+        struct pet_thread *new_threadTCB = NULL;
+        //Use one TCB from the array based on index
+        new_threadTCB = &tcbsAllPtr[index];
+        new_threadTCB->id = index;
 
-    
-    return 0;
+        // We allocate stack in pet_thread_init and let us use here
+        // let us go to the bottom of stack
+
+        char * stackBlockPtr = stackblockAllPtr + (index*STACK_SIZE);
+        char * stackPtr = stackBlockPtr + STACK_SIZE - sizeof(pet_thread_fn_t);
+        new_threadTCB->stackblockPtr = stackBlockPtr;
+        new_threadTCB->stackPtr = (pet_thread_fn_t*) stackPtr;
+
+        //Bottom of stack should hold the start address of thread function
+        *(new_threadTCB->stackPtr) = func;
+        new_threadTCB->state = PET_THREAD_INIT;
+        nof_running_threads++;
+
+        DEBUG("Created new Pet Thread (%p):\n", new_threadTCB);
+        DEBUG("--Add thread state here--\n");
+        __dump_stack(new_threadTCB);
+
+
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
 }
 
 
