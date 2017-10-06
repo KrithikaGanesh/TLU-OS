@@ -62,6 +62,7 @@ static char *stackblockAllPtr= NULL;
 static struct pet_thread *tcbsAllPtr = NULL;
 
 static int nof_running_threads = -1;
+int nof_switches = 0;
 
 
 static pet_thread_id_t current     = PET_MASTER_THREAD_ID; // did not find use still
@@ -242,9 +243,47 @@ pet_thread_yield_to(pet_thread_id_t thread_id)
 int
 pet_thread_schedule()
 {
+    static int index = 0;
+    static int current_index = -1;
+    static int next_index = -1;
 
-    /* Implement this */
-    
+    //Currently implementing a Round Robin
+    // Assumption : all threads are initialized
+
+    current_index = index;
+    if(index< nof_running_threads-1)
+    {
+        index++;
+    }
+    else
+    {
+        index = 0;
+    }
+    next_index = index;
+
+    nof_switches++;
+    if(tcbsAllPtr[next_index].state == PET_THREAD_INIT)
+    {
+        tcbsAllPtr[next_index].state = PET_THREAD_RUNNING;
+        tcbsAllPtr[current_index].state = PET_THREAD_READY;
+        printf("BeforeContextSwitch1> Current index %d Next index %d\n",current_index,next_index);
+        __switch_to_stack(&tcbsAllPtr[next_index].stackPtr,&tcbsAllPtr[current_index].stackPtr,
+                          tcbsAllPtr[next_index].id,tcbsAllPtr[current_index].id);
+        printf("AfterContextSwitch1> Current index %d Next index %d\n",current_index,next_index);
+
+    }
+    else
+    {
+        tcbsAllPtr[next_index].state = PET_THREAD_RUNNING;
+        tcbsAllPtr[current_index].state = PET_THREAD_READY;
+        printf("BeforeContextSwitch2> Current index %d Next index %d\n",current_index,next_index);
+        __switch_to_stack(&tcbsAllPtr[next_index].stackPtr,&tc5bsAllPtr[current_index].stackPtr,
+                          tcbsAllPtr[next_index].id,tcbsAllPtr[current_index].id);
+        printf("AfterContextSwitch2> Current index %d Next index %d\n",current_index,next_index);
+
+
+    }
+
     return 0;
 }
 
