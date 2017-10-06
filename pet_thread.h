@@ -14,6 +14,7 @@
 #define PET_INVALID_THREAD_ID (~0x0ULL)
 #define PET_MASTER_THREAD_ID  (0x0ULL)
 
+#define PET_MAX_TCOUNT 10
 typedef uintptr_t pet_thread_id_t;
 
 typedef void *(*pet_thread_fn_t)(void * arg);

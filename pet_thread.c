@@ -17,8 +17,8 @@
 
 
 
-
-typedef enum {PET_THREAD_STOPPED,
+//adding another state PET_THREAD_INIT
+typedef enum {PET_THREAD_INIT,PET_THREAD_STOPPED,
 	      PET_THREAD_RUNNING,
  	      PET_THREAD_READY,
 	      PET_THREAD_BLOCKED} thread_run_state_t;
@@ -43,21 +43,32 @@ struct exec_ctx {
 
 
 struct pet_thread {
-    struct exec_ctx context;
-    pet_thread_id_t thread_id;
-    thread_run_state_t state;
-    void * stackPtr;
     /* Implement this */
+    pet_thread_id_t id;
+    char *stackblockPtr; //Top Stack Pointer : created in pet_thread_create() and released in pet_thread_exit;
+    pet_thread_fn_t *stackPtr; //Current stack pointer will be saved here during a switch stack. If you dereference it will give you the address to return to from where you left it
+    //should we store the arguments here?
+    thread_run_state_t state;
+    pet_thread_id_t joinfrom;
+
 };
 
+//We provide space for all stacks in one block in pet_thread_init()
+//and initialize the top of stack for each thread in pet_thread_create()
+static char *stackblockAllPtr= NULL;
 
-static pet_thread_id_t current     = PET_MASTER_THREAD_ID;
-struct pet_thread      master_dummy_thread;
+// We will block allocate for all TCBs in pet_thread_init()
+// We will update individual attributes for each TCB in pet_thread_create()
+static struct pet_thread *tcbsAllPtr = NULL;
+
+static int nof_running_threads = -1;
+
+
+static pet_thread_id_t current     = PET_MASTER_THREAD_ID; // did not find use still
+struct pet_thread      master_dummy_thread; // did not find use still
 
 static LIST_HEAD(thread_list);
-static struct list_head readyList;
-static int thread_ids = 1;
-struct pet_thread * master_thread;
+
 
 extern void __switch_to_stack(void            * tgt_stack,
 			      void            * saved_stack,
@@ -73,10 +84,9 @@ get_thread(pet_thread_id_t thread_id)
     if (thread_id == PET_MASTER_THREAD_ID) {
 	return &(master_dummy_thread);
     }
+
+
     /* Implement this */
-
-    /*need to search for the thread id and return*/
-
     
     return NULL;
 }
@@ -87,10 +97,10 @@ get_thread_id(struct pet_thread * thread)
     if (thread == &(master_dummy_thread)) {
 	return PET_MASTER_THREAD_ID;
     }
-    else
+
     /* Implement this */
-        /*ULT*/
-        return thread->thread_id;
+    
+    return 0;
 }
 
 
@@ -98,12 +108,19 @@ int
 pet_thread_init(void)
 {
     printf("Initializing Pet Thread library\n");
-    master_thread = (struct pet_thread *)malloc(sizeof(struct pet_thread));
-    master_thread->thread_id = PET_MASTER_THREAD_ID;
-    printf("Initializing Pet Thread library\n");
-    //list_head_init(&readyList);
-    /* Implement this */
 
+    stackblockAllPtr = calloc(STACK_SIZE,PET_MAX_TCOUNT+1); //+1 as we are allocating even for main thread
+    tcbsAllPtr = calloc(sizeof(struct pet_thread),PET_MAX_TCOUNT+1);
+    nof_running_threads = 0 ;
+
+    //initialize master thread
+    tcbsAllPtr[0].id = 0;
+    tcbsAllPtr[0].stackblockPtr = NULL;
+    tcbsAllPtr[0].stackPtr = NULL;
+    tcbsAllPtr[0].state = PET_THREAD_READY;
+
+    /* Implement this */
+    
     return 0;
 }
 
@@ -151,24 +168,21 @@ __thread_invoker(struct pet_thread * thread)
 
 int
 pet_thread_create(pet_thread_id_t * thread_id,
-                  pet_thread_fn_t   func,
-                  void            * arg)
+		  pet_thread_fn_t   func,
+		  void            * arg)
 {
     struct pet_thread * new_thread;
-    new_thread = (struct pet_thread *)malloc(sizeof(struct pet_thread));
-    new_thread->thread_id = (pet_thread_id_t)thread_ids++;
-    new_thread->state = PET_THREAD_READY;
-    new_thread->stackPtr = &func;
-    __switch_to_stack(new_thread->stackPtr,master_thread->stackPtr,new_thread->thread_id,master_thread->thread_id);
+    
     /* Implement this */
-
+    
     DEBUG("Created new Pet Thread (%p):\n", new_thread);
     DEBUG("--Add thread state here--\n");
     __dump_stack(new_thread);
 
-
+    
     return 0;
 }
+
 
 void
 pet_thread_cleanup(pet_thread_id_t prev_id,
