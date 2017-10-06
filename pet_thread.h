@@ -14,10 +14,17 @@
 #define PET_INVALID_THREAD_ID (~0x0ULL)
 #define PET_MASTER_THREAD_ID  (0x0ULL)
 
+#define PET_MAX_TCOUNT 10
 typedef uintptr_t pet_thread_id_t;
 
 typedef void *(*pet_thread_fn_t)(void * arg);
+typedef struct PARG{
+    char *msg;
+    int arg1;
+    int arg2;
+    int arg3;
 
+}PET_THREAD_ARG;
 
 int pet_thread_create(pet_thread_id_t * thread, pet_thread_fn_t func, void * arg);
 

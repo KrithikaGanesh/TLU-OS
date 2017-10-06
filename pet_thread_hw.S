@@ -37,21 +37,37 @@
 
 
 
+// %rdi : 1st argument
+// %rsi : 2nd argument
+// %rdx : 3rd argument
+// %rcx : 4th argument
+// %r8 : 5th argument
+// %r9 : 6th argument
+
 
 .align 8
 .globl __switch_to_stack
 __switch_to_stack:
 	save_registers;
-	movq %rsp,   (%rsi);
-	movq (%rdi), %rsp;
+	movq %rsp,   (%rsi); //Save current stack pointer to second argumemt dereferenced
+	movq (%rdi), %rsp; //Retreive next stack pointer from first argument  dereferenced
 	
-	movq %rdx,   %rdi;
-	movq %rcx,   %rsi;
-	call pet_thread_cleanup;
+	//movq %rdx,   %rdi;
+	//movq %rcx,   %rsi;
+	//call pet_thread_cleanup;
 
 	restore_registers;
 	ret;
 
+
+.align 8
+.globl __switch_to_stack_first
+__switch_to_stack_first:
+	save_registers;
+	movq %rsp,   (%rsi);
+	movq (%rdi), %rsp;
+
+	ret;
 
 
 .align 8

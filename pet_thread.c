@@ -17,8 +17,8 @@
 
 
 
-
-typedef enum {PET_THREAD_STOPPED,
+//adding another state PET_THREAD_INIT
+typedef enum {PET_THREAD_INIT,PET_THREAD_STOPPED,
 	      PET_THREAD_RUNNING,
  	      PET_THREAD_READY,
 	      PET_THREAD_BLOCKED} thread_run_state_t;
@@ -44,17 +44,30 @@ struct exec_ctx {
 
 struct pet_thread {
     /* Implement this */
-    /*ULT*/
-    pet_thread_id_t thread_id;
+    pet_thread_id_t id;
+    char *stackblockPtr; //Top Stack Pointer : created in pet_thread_create() and released in pet_thread_exit;
+    pet_thread_fn_t *stackPtr; //Current stack pointer will be saved here during a switch stack. If you dereference it will give you the address to return to from where you left it
+    //should we store the arguments here?
+    void *arg;
     thread_run_state_t state;
-    struct exec_ctx context;
+    pet_thread_id_t joinfrom;
 
 };
 
+//We provide space for all stacks in one block in pet_thread_init()
+//and initialize the top of stack for each thread in pet_thread_create()
+static char *stackblockAllPtr= NULL;
+
+// We will block allocate for all TCBs in pet_thread_init()
+// We will update individual attributes for each TCB in pet_thread_create()
+static struct pet_thread *tcbsAllPtr = NULL;
+
+static int nof_running_threads = -1;
+int nof_switches = 0;
 
 
-static pet_thread_id_t current     = PET_MASTER_THREAD_ID;
-struct pet_thread      master_dummy_thread;
+static pet_thread_id_t current     = PET_MASTER_THREAD_ID; // did not find use still
+struct pet_thread      master_dummy_thread; // did not find use still
 
 static LIST_HEAD(thread_list);
 
@@ -63,6 +76,11 @@ extern void __switch_to_stack(void            * tgt_stack,
 			      void            * saved_stack,
 			      pet_thread_id_t   current,
 			      pet_thread_id_t   tgt);
+
+extern void __switch_to_stack_first(void            * tgt_stack,
+                              void            * saved_stack,
+                              pet_thread_id_t   current,
+                              pet_thread_id_t   tgt);
 
 extern void __abort_to_stack(void * tgt_stack);
 
@@ -73,10 +91,9 @@ get_thread(pet_thread_id_t thread_id)
     if (thread_id == PET_MASTER_THREAD_ID) {
 	return &(master_dummy_thread);
     }
+
+
     /* Implement this */
-
-    /*need to search for the thread id and return*/
-
     
     return NULL;
 }
@@ -87,10 +104,10 @@ get_thread_id(struct pet_thread * thread)
     if (thread == &(master_dummy_thread)) {
 	return PET_MASTER_THREAD_ID;
     }
-    else
+
     /* Implement this */
-        /*ULT*/
-        return thread->thread_id;
+    
+    return 0;
 }
 
 
@@ -98,6 +115,16 @@ int
 pet_thread_init(void)
 {
     printf("Initializing Pet Thread library\n");
+
+    stackblockAllPtr = calloc(STACK_SIZE,PET_MAX_TCOUNT+1); //+1 as we are allocating even for main thread
+    tcbsAllPtr = calloc(sizeof(struct pet_thread),PET_MAX_TCOUNT+1);
+    nof_running_threads = 0 ;
+
+    //initialize master thread
+    tcbsAllPtr[0].id = 0;
+    tcbsAllPtr[0].stackblockPtr = NULL;
+    tcbsAllPtr[0].stackPtr = NULL;
+    tcbsAllPtr[0].state = PET_THREAD_READY;
 
     /* Implement this */
     
@@ -109,8 +136,12 @@ static void
 __dump_stack(struct pet_thread * thread)
 {
 
-    /* Implement this */
-    
+    printf("DumpStack> Thread id %lu \n", thread->id);
+    printf("DumpStack>  TCB pointer %p \n", thread);
+    printf("DumpStack> Stack block pointer %p \n", thread->stackblockPtr);
+    printf("DumpStack>  Stack pointer %p \n", thread->stackPtr);
+    printf("DumpStack>  Function Pointer %p \n", *(pet_thread_fn_t)(char *)thread->stackPtr+0);
+
     return;
 }
 
@@ -151,16 +182,38 @@ pet_thread_create(pet_thread_id_t * thread_id,
 		  pet_thread_fn_t   func,
 		  void            * arg)
 {
-    struct pet_thread * new_thread;
-    
-    /* Implement this */
-    
-    DEBUG("Created new Pet Thread (%p):\n", new_thread);
-    DEBUG("--Add thread state here--\n");
-    __dump_stack(new_thread);
+    int index = nof_running_threads+1;
+    if(index <= PET_MAX_TCOUNT) {
+        struct pet_thread *new_threadTCB = NULL;
+        //Use one TCB from the array based on index
+        new_threadTCB = &tcbsAllPtr[index];
+        new_threadTCB->id = index;
 
-    
-    return 0;
+        // We allocate stack in pet_thread_init and let us use here
+        // let us go to the bottom of stack
+
+        char * stackBlockPtr = stackblockAllPtr + (index*STACK_SIZE);
+        char * stackPtr = stackBlockPtr + STACK_SIZE - sizeof(pet_thread_fn_t);
+        new_threadTCB->stackblockPtr = stackBlockPtr;
+        new_threadTCB->stackPtr = (pet_thread_fn_t*) stackPtr;
+
+        //Bottom of stack should hold the start address of thread function
+        *(new_threadTCB->stackPtr) = func;
+        new_threadTCB->state = PET_THREAD_INIT;
+        new_threadTCB->arg = arg;
+        nof_running_threads++;
+
+        DEBUG("Created new Pet Thread (%p):\n", new_threadTCB);
+        DEBUG("--Add thread state here--\n");
+        __dump_stack(new_threadTCB);
+
+
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
 }
 
 
@@ -197,9 +250,47 @@ pet_thread_yield_to(pet_thread_id_t thread_id)
 int
 pet_thread_schedule()
 {
+    static int index = 0;
+    static int current_index = -1;
+    static int next_index = -1;
 
-    /* Implement this */
-    
+    //Currently implementing a Round Robin
+    // Assumption : all threads are initialized
+
+    current_index = index;
+    if(index< nof_running_threads-1)
+    {
+        index++;
+    }
+    else
+    {
+        index = 0;
+    }
+    next_index = index;
+
+    nof_switches++;
+    if(tcbsAllPtr[next_index].state == PET_THREAD_INIT)
+    {
+        tcbsAllPtr[next_index].state = PET_THREAD_RUNNING;
+        tcbsAllPtr[current_index].state = PET_THREAD_READY;
+        printf("BeforeContextSwitch1> Current index %d Next index %d\n",current_index,next_index);
+        __switch_to_stack_first(&tcbsAllPtr[next_index].stackPtr,&tcbsAllPtr[current_index].stackPtr,
+                          tcbsAllPtr[next_index].id,tcbsAllPtr[current_index].id);
+        printf("AfterContextSwitch1> Current index %d Next index %d\n",current_index,next_index);
+
+    }
+    else
+    {
+        tcbsAllPtr[next_index].state = PET_THREAD_RUNNING;
+        tcbsAllPtr[current_index].state = PET_THREAD_READY;
+        printf("BeforeContextSwitch2> Current index %d Next index %d\n",current_index,next_index);
+        __switch_to_stack(&tcbsAllPtr[next_index].stackPtr,&tcbsAllPtr[current_index].stackPtr,
+                          tcbsAllPtr[next_index].id,tcbsAllPtr[current_index].id);
+        printf("AfterContextSwitch2> Current index %d Next index %d\n",current_index,next_index);
+
+
+    }
+
     return 0;
 }
 
