@@ -1,5 +1,5 @@
-#; -*- fundamental -*-
 
+// #; -*- fundamental -*-
 
 
 #define save_registers \
@@ -19,6 +19,8 @@
 	pushq %rbp;
 
 
+
+
 #define restore_registers \
 	popq %rbp;	  \
 	popq %r15;	  \
@@ -36,39 +38,42 @@
 	popq %rbx;	  \
 
 
+//
+// from ( http://6.035.scripts.mit.edu/sp17/x86-64-architecture-guide.html )
+// %rdi - 1st argument
+// %rsi - 2nd argument
+// %rdx - 3rd argument
+// %rcx - 4th argument
+// %r8  - 5th argument
+// %r9 -  6th argument
 
-// %rdi : 1st argument
-// %rsi : 2nd argument
-// %rdx : 3rd argument
-// %rcx : 4th argument
-// %r8 : 5th argument
-// %r9 : 6th argument
 
 
 .align 8
 .globl __switch_to_stack
-__switch_to_stack:
+__switch_to_stack:       // %rdi %rsi %rdx %rcx
+
 	save_registers;
-	movq %rsp,   (%rsi); //Save current stack pointer to second argumemt dereferenced
-	movq (%rdi), %rsp; //Retreive next stack pointer from first argument  dereferenced
-	
-	//movq %rdx,   %rdi;
-	//movq %rcx,   %rsi;
-	//call pet_thread_cleanup;
+	movq %rsp,   (%rdi); // Save Current Stack Pointer to 1st Org Dereferenced
+	movq (%rsi), %rsp;   // Retrieve Next Stack Pointer from 2nd Org Dereferenced
+
+	// movq %rdx,   %rdi;   // Current Thread Id as the first arg to cleanup
+	// movq %rcx,   %rsi;   // Next Thread Id as the 2nd arg to cleanup
+	// call _pet_thread_cleanup;
 
 	restore_registers;
 	ret;
 
-
+/*
 .align 8
-.globl __switch_to_stack_first
-__switch_to_stack_first:
+.globl _switch_to_stack_first
+_switch_to_stack_first:       // %rdi %rsi %rdx %rcx
+
 	save_registers;
-	movq %rsp,   (%rsi);
-	movq (%rdi), %rsp;
-
+	movq %rsp,   (%rdi); // Save Current Stack Pointer to 1st Org Dereferenced
+	movq (%rsi), %rsp;   // Retrieve Next Stack Pointer from 2nd Org Dereferenced
 	ret;
-
+*/
 
 .align 8
 .globl __abort_to_stack
@@ -76,3 +81,18 @@ __abort_to_stack:
 	movq (%rdi), %rsp;
 	restore_registers;
 	ret;
+
+
+.align 8
+.globl __push_context
+__push_context:       // %rdi %rsi %rdx %rcx
+	movq %rsp,  %r9 ; // save calling stack to %r9
+    movq (%rsi), %rsp;  // switch tcb stack
+
+	save_registers;    // do dummy push
+	movq %rsp, (%rsi)   // update tcb stack
+	movq %r9, %rsp     // retrieve calling stack from %r9
+	ret;
+
+
+
