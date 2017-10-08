@@ -14,18 +14,19 @@
 
 
 void *
-test_func1(void * arg)
+test_func1(void* arg)
 {
   
-    printf("Test Function: %ld\n", (long)arg);
-    return NULL;
+    printf("Test Function arg = %d",arg);
+    fflush(stdout);
+    return 0;
 }
 
 
 int main(int argc, char ** argv)
 {
-    pet_thread_id_t test_thread1;
-    int ret = 0;
+    pet_thread_id_t test_thread1,test_thread2;
+    int ret = 0,ret1=0;
 
     ret = pet_thread_init();
 
@@ -39,13 +40,17 @@ int main(int argc, char ** argv)
 
 
     ret = pet_thread_create(&test_thread1, test_func1, (void *)1);
+    ret1 = pet_thread_create(&test_thread2, test_func1, (void *)2);
 
     if (ret == -1) {
 	ERROR("Could not create test_thread1\n");
 	return -1;
     }
-    
-
+    #ifdef ENABLE_TLS
+	printf("TLS enabled");   
+    #else
+        printf("TLS not enabled"); 
+    #endif
 
     ret = pet_thread_run();
 
