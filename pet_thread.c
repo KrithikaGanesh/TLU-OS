@@ -97,9 +97,7 @@ get_thread_id(struct pet_thread * thread)
 	return PET_MASTER_THREAD_ID;
     }
 
-    /* Implement this */
-    
-    return 0;
+    return thread->thread_id;
 }
 
 
@@ -107,13 +105,10 @@ int
 pet_thread_init(void)
 {
     INIT_LIST_HEAD(&readyQueue.node);
-    master_thread = &master_dummy_thread;//(struct pet_thread *)calloc(1,sizeof(struct pet_thread));
+    master_thread = &master_dummy_thread;
     master_thread->thread_id = PET_MASTER_THREAD_ID;
     printf("master thread = %d\n",(int)master_thread->thread_id);
-    //master_thread->stackPtr = calloc(1,STACK_SIZE);
     char * size = (master_thread->stackPtr + STACK_SIZE);
-    //master_thread->stackPtr = size;
-//    list_add_tail(&(master_thread->node),&(readyQueue.node));
     printf("Initializing Pet Thread library\n");    
     return 0;
 }
@@ -144,7 +139,7 @@ pet_thread_join(pet_thread_id_t    thread_id,
 void
 pet_thread_exit(void * ret_val)
 {
-    /* Implement this */
+    
 }
 
 
@@ -155,7 +150,8 @@ __thread_invoker(struct pet_thread * thread)
 
     printf("Inside Invoker\n");
     fflush(stdout);
-    thread->function(thread->args);
+    int retVal = thread->function(thread->args);
+    pet_thread_exit((void*)retVal);
     __switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,master_thread->thread_id,thread->thread_id);
 }
 
