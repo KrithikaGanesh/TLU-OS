@@ -61,6 +61,7 @@ static LIST_HEAD(thread_list);
 struct pet_thread readyQueue; 
 static int thread_ids = 1;
 struct pet_thread * master_thread;
+static int pet_thread_ready_count  = -1;
 
 extern void __switch_to_stack(void            * tgt_stack,
 			      void            * saved_stack,
@@ -72,7 +73,7 @@ extern void __abort_to_stack(void * tgt_stack);
 static struct pet_thread *
 get_thread(pet_thread_id_t thread_id)
 {
-    printf("Inside get_thread\n");
+    //printf("Inside get_thread\n");
     if (thread_id == PET_MASTER_THREAD_ID) {
 	return master_thread;
     }
@@ -108,9 +109,12 @@ pet_thread_init(void)
     INIT_LIST_HEAD(&readyQueue.node);
     master_thread = &master_dummy_thread;
     master_thread->thread_id = PET_MASTER_THREAD_ID;
-    printf("master thread = %d\n",(int)master_thread->thread_id);
+    //printf("master thread = %d\n",(int)master_thread->thread_id);
     char * size = (master_thread->stackPtr + STACK_SIZE);
-    printf("Initializing Pet Thread library\n");    
+
+    pet_thread_ready_count  = 0;
+    printf("\nINIT %d\n", pet_thread_ready_count);
+    //printf("Initializing Pet Thread library\n");
     return 0;
 }
 
@@ -139,10 +143,10 @@ pet_thread_join(pet_thread_id_t    thread_id,
     tgt_thread = get_thread(thread_id);
 
     if (tgt_thread == NULL) return (-1);
-    printf("\n****************Target id %d",tgt_thread->thread_id);
+    //printf("\n****************Target id %d",tgt_thread->thread_id);
     fflush(stdout);
 
-    printf("\n*****************Current id %d",cur_thread->thread_id);
+    //printf("\n*****************Current id %d",cur_thread->thread_id);
     fflush(stdout);
 
 
@@ -172,10 +176,13 @@ static int
 __thread_invoker(struct pet_thread * thread)
 {
 
-    printf("Inside Invoker\n");
-    fflush(stdout);
+    //printf("Inside Invoker\n");
+    //fflush(stdout);
     int retVal = thread->function(thread->args);
     thread->state = PET_THREAD_STOPPED;
+    pet_thread_ready_count--;
+    printf("\nINVOKER :%d\n" ,pet_thread_ready_count );
+
     if(thread->joinfrom != -1)
     {
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
@@ -204,13 +211,16 @@ pet_thread_create(pet_thread_id_t * thread_id,
     new_thread->stackPtr = size;
     struct exec_ctx *cont = size ;
     cont->rip = (uint64_t)__thread_invoker;
-    printf("sizeof func = %lu\n",sizeof(func));
+    //printf("sizeof func = %lu\n",sizeof(func));
     new_thread->function = func;
-    printf("sizeof arg = %lu\n",sizeof(arg));
+    //printf("sizeof arg = %lu\n",sizeof(arg));
     new_thread->args = arg;
-    printf("sizeof new_thread = %lu\n",sizeof(new_thread));
+   // printf("sizeof new_thread = %lu\n",sizeof(new_thread));
     cont->rdi = (uint64_t)new_thread;
     list_add_tail(&(new_thread->node),&(readyQueue.node));
+    pet_thread_ready_count++;
+    printf("\nCREATE :%d\n" ,pet_thread_ready_count );
+
 //    __switch_to_stack(&new_thread->stackPtr,&master_thread->stackPtr,new_thread->thread_id,master_thread->thread_id);    
     DEBUG("Created new Pet Thread (%p):\n", new_thread);
     DEBUG("--Add thread state here--\n");
@@ -225,11 +235,11 @@ void
 pet_thread_cleanup(pet_thread_id_t prev_id,
 		   pet_thread_id_t my_id)
 {
-    pet_thread_id_t a = prev_id, b = my_id;
-    printf("cleanup prev_id = %"PRIu64"\n",a);
-    fflush(stdout);
-    printf("cleanup my_id = %"PRIu64"\n",b);
-    fflush(stdout);
+//    pet_thread_id_t a = prev_id, b = my_id;
+//    printf("cleanup prev_id = %"PRIu64"\n",a);
+//    fflush(stdout);
+//    printf("cleanup my_id = %"PRIu64"\n",b);
+//    fflush(stdout);
 }
 
 
@@ -238,20 +248,22 @@ pet_thread_cleanup(pet_thread_id_t prev_id,
 static void
 __yield_to(struct pet_thread * tgt_thread)
 {
-    printf("\ntgt_threadid = %d\nmaster_threadid = %d\n",(int)tgt_thread->thread_id,(int)master_thread->thread_id);
-    struct pet_thread * runningThread = get_thread(current);
+
+    struct pet_thread *runningThread = get_thread(current);
+
     runningThread->state = PET_THREAD_READY;
+
     tgt_thread->state = PET_THREAD_RUNNING;
+    current = tgt_thread->thread_id;
+
     __switch_to_stack(&tgt_thread->stackPtr,&runningThread->stackPtr,tgt_thread->thread_id,runningThread->thread_id);
-    printf("\nfinished execution --- In yield\n");
+
 }
 
 
 int
 pet_thread_yield_to(pet_thread_id_t thread_id)
 {
-    printf("\n&&&&Thread id %d", thread_id);
-    current = thread_id;
     __yield_to(get_thread(thread_id));
      
     return 0;
@@ -267,23 +279,18 @@ pet_thread_schedule()
     printf("Scheduling thread\n");
     struct list_head *pos;
     struct pet_thread *tmp;
-    list_for_each(pos,&readyQueue.node) {
-       printf("Inside Schedule loop");
-       tmp = (struct pet_thread *)malloc(sizeof(struct pet_thread));
-       tmp = list_entry(pos,struct pet_thread,node);
-       printf("id = %d\n",(int)tmp->thread_id);
-       printf("going to pet_thread_yield_to with above thread id");
-        if(tmp->state == PET_THREAD_READY)
-        {
-            tmp->state= PET_THREAD_RUNNING;
-            current = tmp->thread_id;
-            printf("\nSCHEDULE : %d", current);
+    do {
+        printf("\nSCHEDULE :%d\n" ,pet_thread_ready_count);
 
-            __switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,tmp->thread_id,master_thread->thread_id);
-
+        list_for_each(pos, &readyQueue.node) {
+            tmp = (struct pet_thread *) malloc(sizeof(struct pet_thread));
+            tmp = list_entry(pos, struct pet_thread, node);
+            if(tmp->thread_id != current)
+            {
+                pet_thread_yield_to(tmp->thread_id);
+            }
         }
-
-    }
+    }while(pet_thread_ready_count>0);
     
     return 0;
 }

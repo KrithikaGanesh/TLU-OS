@@ -17,11 +17,10 @@ void *
 test_func1(void* arg)
 {
 
-    printf("BEFORE JOIN F1");
-    pet_thread_join(2,NULL);
-
-
     printf("Test Function arg = %d",arg);
+    pet_thread_yield_to(2);
+    printf("Yield done = %d",arg);
+
     fflush(stdout);
     return 0;
 }
@@ -30,11 +29,26 @@ void *
 test_func2(void* arg)
 {
 
+
+
     printf("Test Function arg = %d",arg);
+    pet_thread_yield_to(3);
+    printf("Yield done = %d",arg);
+
     fflush(stdout);
     return 0;
 }
 
+void *
+test_func3(void* arg)
+{
+
+
+
+    printf("Test Function arg = %d",arg);
+    fflush(stdout);
+    return 0;
+}
 
 
 int main(int argc, char ** argv)
@@ -55,10 +69,15 @@ int main(int argc, char ** argv)
 
     ret = pet_thread_create(&test_thread1, test_func1, (void *)1);
     ret1 = pet_thread_create(&test_thread2, test_func2, (void *)2);
+    ret1 = pet_thread_create(&test_thread2, test_func3, (void *)3);
 
     if (ret == -1) {
 	ERROR("Could not create test_thread1\n");
 	return -1;
+    }
+    if (ret1 == -1) {
+        ERROR("Could not create test_thread1\n");
+        return -1;
     }
     #ifdef ENABLE_TLS
 	printf("TLS enabled");   
