@@ -11,12 +11,13 @@
 
 //func1, func2, func3 round robin
 
+
 void *
 test_func1(void* arg)
 {
     printf("Test Function arg = %d\n",arg);
     pet_thread_yield_to(2);
-    printf("Test Function arg = %d\n",arg);
+    printf("End Test Function arg = %d\n",arg);
     return 0;
 }
 
@@ -25,7 +26,7 @@ test_func2(void* arg)
 {
     printf("Test Function arg = %d\n",arg);
     pet_thread_yield_to(3);
-    printf("Test Function arg = %d\n",arg);
+    printf("End Test Function arg = %d\n",arg);
     return 0;
 }
 
@@ -34,7 +35,7 @@ test_func3(void* arg)
 {
     printf("Test Function arg = %d\n",arg);
     pet_thread_yield_to(1);
-    printf("Test Function arg = %d\n",arg);
+    printf("End Test Function arg = %d\n",arg);
     return 0;
 }
 //demo exit (uncomment only func4 comment other

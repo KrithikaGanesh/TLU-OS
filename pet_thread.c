@@ -82,7 +82,7 @@ get_thread(pet_thread_id_t thread_id)
     struct list_head *pos;
     struct pet_thread *tmp;
     list_for_each(pos,&readyQueue.node) {
-       tmp = (struct pet_thread *)malloc(sizeof(struct pet_thread));
+       //tmp = (struct pet_thread *)malloc(sizeof(struct pet_thread));
        tmp = list_entry(pos,struct pet_thread,node);
        if(tmp->thread_id == thread_id) {
           return tmp;
@@ -119,12 +119,13 @@ pet_thread_init(void)
 static void
 __dump_stack(struct pet_thread * thread)
 {
-    printf("Dump stack> Thread ID: %d \n",thread->thread_id);
-    printf("Dump stack> Thread Ptr: %p \n",thread);
-    printf("Dump stack> Stack Pointer %p \n", thread->stackPtr);
-    printf("Dump stack> FunctionPtr: %p \n",thread->function);
-    printf("Dump stack> State:%d \n",thread->state);
-    printf("Dump stack> Join From %d \n",thread->joinfrom);
+    //change to DEBUG
+    printf("Dump thread> Thread ID: %d \n",thread->thread_id);
+    printf("Dump thread> Thread Ptr: %p \n",thread);
+    printf("Dump thread> Stack Pointer %p \n", thread->stackPtr);
+    printf("Dump thread> FunctionPtr: %p \n",thread->function);
+    printf("Dump thread> State:%d \n",thread->state);
+    printf("Dump thread> Join From %d \n",thread->joinfrom);
 
     printf("\n");
 
@@ -210,9 +211,9 @@ pet_thread_create(pet_thread_id_t * thread_id,
     new_thread->state = PET_THREAD_READY;
     new_thread->joinfrom = -1;
     new_thread->stackPtr = calloc(1,STACK_SIZE);
-    char * size = (new_thread->stackPtr + STACK_SIZE - sizeof(struct exec_ctx));    
-    new_thread->stackPtr = size;
-    struct exec_ctx *cont = size ;
+    char * sptr = (new_thread->stackPtr + STACK_SIZE - sizeof(struct exec_ctx));    
+    new_thread->stackPtr = sptr;
+    struct exec_ctx *cont = sptr ;
     cont->rip = (uint64_t)__thread_invoker;
     new_thread->function = func;
     new_thread->args = arg;
@@ -235,9 +236,11 @@ pet_thread_cleanup(pet_thread_id_t prev_id,
 {
     if(get_thread(prev_id)->state==PET_THREAD_STOPPED)
     {
+        //free from stack top
         free(get_thread(prev_id)->stackPtr);
-        free(get_thread(prev_id));
-        current= my_id;
+        //delete node and free
+        //free(get_thread(prev_id));
+       // current= my_id;
     }
 }
 
@@ -276,7 +279,6 @@ pet_thread_schedule()
     struct pet_thread *tmp;
     do {
         list_for_each(pos, &readyQueue.node) {
-            tmp = (struct pet_thread *) malloc(sizeof(struct pet_thread));
             tmp = list_entry(pos, struct pet_thread, node);
             if(tmp->thread_id != current && tmp->state == PET_THREAD_READY)
             {
