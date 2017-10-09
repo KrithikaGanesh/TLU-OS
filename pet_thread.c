@@ -51,6 +51,7 @@ struct pet_thread {
     pet_thread_fn_t function;
     void * args;
     struct list_head node;
+    pet_thread_id_t joinfrom;
 };
 
 static pet_thread_id_t current     = PET_MASTER_THREAD_ID;
@@ -131,9 +132,32 @@ pet_thread_join(pet_thread_id_t    thread_id,
 {
 
     /* Implement this */
-    
+    struct pet_thread * tgt_thread;
+    struct pet_thread * cur_thread;
+    cur_thread = get_thread(current);
+
+    tgt_thread = get_thread(thread_id);
+
+    if (tgt_thread == NULL) return (-1);
+    printf("\n****************Target id %d",tgt_thread->thread_id);
+    fflush(stdout);
+
+    printf("\n*****************Current id %d",cur_thread->thread_id);
+    fflush(stdout);
+
+
+
+    tgt_thread->joinfrom = current;
+
+
+
+    cur_thread->state = PET_THREAD_BLOCKED;
+    tgt_thread->state = PET_THREAD_RUNNING;
+    __switch_to_stack(&tgt_thread->stackPtr,&cur_thread->stackPtr,tgt_thread->thread_id,cur_thread->thread_id);
     return 0;
-}
+
+
+ }
 
 
 void
@@ -151,7 +175,15 @@ __thread_invoker(struct pet_thread * thread)
     printf("Inside Invoker\n");
     fflush(stdout);
     int retVal = thread->function(thread->args);
-    pet_thread_exit((void*)retVal);
+    thread->state = PET_THREAD_STOPPED;
+    if(thread->joinfrom != -1)
+    {
+        struct pet_thread *joinThread = get_thread(thread->joinfrom);
+        joinThread->state= PET_THREAD_READY;
+        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
+
+    }
+
     __switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,master_thread->thread_id,thread->thread_id);
 }
 
@@ -163,9 +195,10 @@ pet_thread_create(pet_thread_id_t * thread_id,
 {
     struct pet_thread * new_thread;
     new_thread = (struct pet_thread *)malloc(sizeof(struct pet_thread));
-    new_thread->thread_id = (pet_thread_id_t)++thread_ids;
+    new_thread->thread_id = (pet_thread_id_t)thread_ids++;
     printf("new_thread->thread_id = %d\n",(int)new_thread->thread_id);
     new_thread->state = PET_THREAD_READY;
+    new_thread->joinfrom = -1;
     new_thread->stackPtr = calloc(1,STACK_SIZE);
     char * size = (new_thread->stackPtr + STACK_SIZE - sizeof(struct exec_ctx));    
     new_thread->stackPtr = size;
@@ -205,8 +238,11 @@ pet_thread_cleanup(pet_thread_id_t prev_id,
 static void
 __yield_to(struct pet_thread * tgt_thread)
 {
-    printf("tgt_threadid = %d\nmaster_threadid = %d\n",(int)tgt_thread->thread_id,(int)master_thread->thread_id);
-    __switch_to_stack(&tgt_thread->stackPtr,&master_thread->stackPtr,tgt_thread->thread_id,master_thread->thread_id);
+    printf("\ntgt_threadid = %d\nmaster_threadid = %d\n",(int)tgt_thread->thread_id,(int)master_thread->thread_id);
+    struct pet_thread * runningThread = get_thread(current);
+    runningThread->state = PET_THREAD_READY;
+    tgt_thread->state = PET_THREAD_RUNNING;
+    __switch_to_stack(&tgt_thread->stackPtr,&runningThread->stackPtr,tgt_thread->thread_id,runningThread->thread_id);
     printf("\nfinished execution --- In yield\n");
 }
 
@@ -214,6 +250,8 @@ __yield_to(struct pet_thread * tgt_thread)
 int
 pet_thread_yield_to(pet_thread_id_t thread_id)
 {
+    printf("\n&&&&Thread id %d", thread_id);
+    current = thread_id;
     __yield_to(get_thread(thread_id));
      
     return 0;
@@ -235,7 +273,16 @@ pet_thread_schedule()
        tmp = list_entry(pos,struct pet_thread,node);
        printf("id = %d\n",(int)tmp->thread_id);
        printf("going to pet_thread_yield_to with above thread id");
-       pet_thread_yield_to(tmp->thread_id);
+        if(tmp->state == PET_THREAD_READY)
+        {
+            tmp->state= PET_THREAD_RUNNING;
+            current = tmp->thread_id;
+            printf("\nSCHEDULE : %d", current);
+
+            __switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,tmp->thread_id,master_thread->thread_id);
+
+        }
+
     }
     
     return 0;
