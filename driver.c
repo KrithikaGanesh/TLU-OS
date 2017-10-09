@@ -17,9 +17,9 @@ void *
 test_func1(void* arg)
 {
 
-    printf("Test Function arg = %d",arg);
+    printf("Test Function arg = %d\n",arg);
     pet_thread_yield_to(2);
-    printf("Yield done = %d",arg);
+    printf("Test Function arg = %d\n",arg);
 
     fflush(stdout);
     return 0;
@@ -31,9 +31,9 @@ test_func2(void* arg)
 
 
 
-    printf("Test Function arg = %d",arg);
+    printf("Test Function arg = %d\n",arg);
     pet_thread_yield_to(3);
-    printf("Yield done = %d",arg);
+    printf("Test Function arg = %d\n",arg);
 
     fflush(stdout);
     return 0;
@@ -45,7 +45,10 @@ test_func3(void* arg)
 
 
 
-    printf("Test Function arg = %d",arg);
+    printf("Test Function arg = %d\n",arg);
+    pet_thread_yield_to(1);
+    printf("Test Function arg = %d\n",arg);
+
     fflush(stdout);
     return 0;
 }
@@ -79,11 +82,6 @@ int main(int argc, char ** argv)
         ERROR("Could not create test_thread1\n");
         return -1;
     }
-    #ifdef ENABLE_TLS
-	printf("TLS enabled");   
-    #else
-        printf("TLS not enabled"); 
-    #endif
 
     ret = pet_thread_run();
 
