@@ -159,6 +159,16 @@ pet_thread_join(pet_thread_id_t    thread_id,
 void
 pet_thread_exit(void * ret_val)
 {
+    struct pet_thread *runningThread = get_thread(current);
+    runningThread->state = PET_THREAD_STOPPED;
+    pet_thread_ready_count--;
+    if(thread->joinfrom != -1)
+    {
+        struct pet_thread *joinThread = get_thread(thread->joinfrom);
+        joinThread->state= PET_THREAD_RUNNING;
+        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
+
+    }
     __abort_to_stack(&master_thread->stackPtr);
 }
 
@@ -169,7 +179,8 @@ __thread_invoker(struct pet_thread * thread)
 {
 
     int retVal = thread->function(thread->args);
-    thread->state = PET_THREAD_STOPPED;
+    pet_thread_exit(); // -- same code as below. 
+    /*thread->state = PET_THREAD_STOPPED;
     pet_thread_ready_count--;
 
     if(thread->joinfrom != -1)
@@ -179,8 +190,8 @@ __thread_invoker(struct pet_thread * thread)
         __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
 
     }
-
-    __switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,master_thread->thread_id,thread->thread_id);
+    __abort_to_stack(&master_thread->stackPtr);*/
+    //__switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,master_thread->thread_id,thread->thread_id);
 }
 
 
