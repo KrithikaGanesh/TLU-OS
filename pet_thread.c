@@ -110,7 +110,6 @@ pet_thread_init(void)
     INIT_LIST_HEAD(&readyQueue.node);
     master_thread = &master_dummy_thread;
     master_thread->thread_id = PET_MASTER_THREAD_ID;
-    master_thread->state = PRT_THREAD_READY;
     char * size = (master_thread->stackPtr + STACK_SIZE);
     pet_thread_ready_count  = 0;
     return 0;
@@ -143,13 +142,12 @@ pet_thread_join(pet_thread_id_t    thread_id,
     struct pet_thread * cur_thread;
     cur_thread = get_thread(current);
     tgt_thread = get_thread(thread_id);
-
-    if (tgt_thread == NULL) return (-1);
-    tgt_thread->joinfrom = current;
+    if (tgt_thread == NULL) {return (-1);}
+    tgt_thread->joinfrom = cur_thread->thread_id;
+    
     cur_thread->state = PET_THREAD_BLOCKED;
     tgt_thread->state = PET_THREAD_RUNNING;
     __switch_to_stack(&tgt_thread->stackPtr,&cur_thread->stackPtr,tgt_thread->thread_id,cur_thread->thread_id);
-    
     return 0;
 
 
@@ -159,17 +157,19 @@ pet_thread_join(pet_thread_id_t    thread_id,
 void
 pet_thread_exit(void * ret_val)
 {
-    struct pet_thread *runningThread = get_thread(current);
-    runningThread->state = PET_THREAD_STOPPED;
+    get_thread(current)->state = PET_THREAD_STOPPED;
     pet_thread_ready_count--;
-    if(thread->joinfrom != -1)
+
+    if(get_thread(current)->joinfrom != -1)
     {
-        struct pet_thread *joinThread = get_thread(thread->joinfrom);
+        struct pet_thread *joinThread = get_thread(get_thread(current)->joinfrom);
         joinThread->state= PET_THREAD_RUNNING;
-        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
+        __switch_to_stack(&joinThread->stackPtr,&get_thread(current)->stackPtr,joinThread->thread_id,current);
 
     }
+
     __abort_to_stack(&master_thread->stackPtr);
+
 }
 
 
@@ -179,19 +179,23 @@ __thread_invoker(struct pet_thread * thread)
 {
 
     int retVal = thread->function(thread->args);
-    pet_thread_exit(); // -- same code as below. 
-    /*thread->state = PET_THREAD_STOPPED;
+    thread->state = PET_THREAD_STOPPED;
     pet_thread_ready_count--;
 
     if(thread->joinfrom != -1)
     {
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
         joinThread->state= PET_THREAD_RUNNING;
+        //pet_thread_ready_count++;
+
         __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
 
     }
-    __abort_to_stack(&master_thread->stackPtr);*/
-    //__switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,master_thread->thread_id,thread->thread_id);
+    __abort_to_stack(&master_thread->stackPtr);
+
+    //__switch_to_stack(&master_thread->stackPtr,&get_thread(current)->stackPtr,master_thread->thread_id,current);
+
+
 }
 
 
@@ -229,11 +233,11 @@ void
 pet_thread_cleanup(pet_thread_id_t prev_id,
 		   pet_thread_id_t my_id)
 {
-    if(get_thread(my_id)->state==PET_THREAD_STOPPED)
+    if(get_thread(prev_id)->state==PET_THREAD_STOPPED)
     {
         free(get_thread(prev_id)->stackPtr);
-        //free(get_thread(prev_id));  -- commenting as I am unsure if this would affect the list.
-        //current= my_id;  -- duplicate assignment. Already assigned in Schedule/Yield
+        free(get_thread(prev_id));
+        current= my_id;
     }
 }
 
@@ -252,6 +256,7 @@ __yield_to(struct pet_thread * tgt_thread)
 
 }
 
+
 int
 pet_thread_yield_to(pet_thread_id_t thread_id)
 {
@@ -259,6 +264,10 @@ pet_thread_yield_to(pet_thread_id_t thread_id)
      
     return 0;
 }
+
+
+
+
 
 int
 pet_thread_schedule()
@@ -271,13 +280,13 @@ pet_thread_schedule()
             tmp = list_entry(pos, struct pet_thread, node);
             if(tmp->thread_id != current && tmp->state == PET_THREAD_READY)
             {
-                current = tgt_thread->thread_id;
-		tmp->state = PET_THREAD_RUNNING;
-    		__switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,tmp->thread_id,master_thread->thread_id);
+                current = tmp->thread_id;
+                tmp->state = PET_THREAD_RUNNING;
+                __switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,tmp->thread_id,master_thread->thread_id);
             }
         }
     }while(pet_thread_ready_count>0);
-    
+
     return 0;
 }
 
@@ -290,3 +299,4 @@ pet_thread_run()
 
     return 0;
 }
+	     

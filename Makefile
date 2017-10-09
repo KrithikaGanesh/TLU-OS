@@ -10,7 +10,8 @@ OBJS =  pet_thread.o \
 	pet_thread_hw.o \
 	driver.o     \
 	pet_hashtable.o \
-	pet_log.o 
+	pet_log.o \
+
 
 build = \
 	@if [ -z "$V" ]; then \
