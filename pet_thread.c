@@ -15,11 +15,7 @@
 #include "pet_list.h"
 #include "pet_log.h"
 
-
 #define STACK_SIZE (4096 * 32)
-
-
-
 
 typedef enum {PET_THREAD_STOPPED,
 	      PET_THREAD_RUNNING,
@@ -79,7 +75,6 @@ get_thread(pet_thread_id_t thread_id)
     if (thread_id == PET_MASTER_THREAD_ID) {
 	return master_thread;
     }
-
     struct list_head *pos;
     struct pet_thread *tmp;
     list_for_each(pos,&readyQueue.node) {
@@ -87,9 +82,7 @@ get_thread(pet_thread_id_t thread_id)
        if(tmp->thread_id == thread_id) {
           return tmp;
        }
-    }
-    
-    
+    }   
     return NULL;
 }
 
@@ -99,7 +92,6 @@ get_thread_id(struct pet_thread * thread)
     if (thread == &(master_dummy_thread)) {
 	return PET_MASTER_THREAD_ID;
     }
-
     return thread->thread_id;
 }
 
@@ -127,9 +119,7 @@ __dump_stack(struct pet_thread * thread)
     printf("Dump thread> FunctionPtr: %p \n",thread->function);
     printf("Dump thread> State:%d \n",thread->state);
     printf("Dump thread> Join From %d \n",thread->joinfrom);
-
     printf("\n");
-
     return;
 }
 
@@ -139,21 +129,17 @@ int
 pet_thread_join(pet_thread_id_t    thread_id,
 		void            ** ret_val)
 {
-
     struct pet_thread * tgt_thread;
     struct pet_thread * cur_thread;
     cur_thread = get_thread(current);
     tgt_thread = get_thread(thread_id);
     if (tgt_thread == NULL && tgt_thread->state==PET_THREAD_STOPPED) {return (-1);}
-    tgt_thread->joinfrom = cur_thread->thread_id;
-    
+    tgt_thread->joinfrom = cur_thread->thread_id;  
     cur_thread->state = PET_THREAD_BLOCKED;
     tgt_thread->state = PET_THREAD_RUNNING;
     pet_thread_ready_count--;
     __switch_to_stack(&tgt_thread->stackPtr,&cur_thread->stackPtr,cur_thread->thread_id,tgt_thread->thread_id);
     return 0;
-
-
  }
 
 
@@ -162,61 +148,29 @@ pet_thread_exit(void * ret_val)
 {
     struct pet_thread *current_exit=get_thread(current);
     current_exit->state = PET_THREAD_STOPPED;
-
     if(current_exit->joinfrom != -1)
     {
         DEBUG("Exit and Inform Joining Thread\n");
-        struct pet_thread *joinThread = current_exit->joinfrom;
+        struct pet_thread *joinThread = get_thread(current_exit->joinfrom);
         joinThread->state= PET_THREAD_READY;
         pet_thread_ready_count++;
-
-        current=current_exit->joinfrom;
-        __switch_to_stack(&joinThread->stackPtr,&current_exit->stackPtr,current_exit->thread_id,joinThread->thread_id);
-
     }
-    else{
-        DEBUG("Exiting without any joining thread\n");
-        __switch_to_stack(&master_thread->stackPtr,&current_exit->stackPtr,current_exit->thread_id,master_thread->thread_id);
-
-
-    }
-
-
-    //__abort_to_stack(&master_thread->stackPtr);
-
+    DEBUG("Exiting without any joining thread\n");
+    __switch_to_stack(&master_thread->stackPtr,&current_exit->stackPtr,current_exit->thread_id,master_thread->thread_id);
 }
-
-
 
 static int
 __thread_invoker(struct pet_thread * thread)
 {
-
     int retVal = thread->function(thread->args);
     thread->state = PET_THREAD_STOPPED;
-
     if(thread->joinfrom != -1)
     {
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
         joinThread->state= PET_THREAD_READY;
-        current= thread->joinfrom;
         pet_thread_ready_count++;
-
-        //__switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,thread->thread_id, joinThread->thread_id);
-
-    }
-    //__abort_to_stack(&master_thread->stackPtr);
-    //else{
-
-        __switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,thread->thread_id,master_thread->thread_id);
-
-
-    //}
-
-
-
+	__switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,thread->thread_id,master_thread->thread_id);
 }
-
 
 int
 pet_thread_create(pet_thread_id_t * thread_id,
@@ -238,12 +192,9 @@ pet_thread_create(pet_thread_id_t * thread_id,
     cont->rdi = (uint64_t)new_thread;
     list_add_tail(&(new_thread->node),&(readyQueue.node));
     pet_thread_ready_count++;
-
     DEBUG("Created new Pet Thread (%p):\n", new_thread);
     DEBUG("--Add thread state here--\n");
     __dump_stack(new_thread);
-
-    
     return 0;
 }
 
@@ -257,10 +208,7 @@ pet_thread_cleanup(pet_thread_id_t prev_id,
     {
         //free from stack top
         DEBUG ("Previous Thread Stopped \n");
-        free(get_thread(prev_id)->stackPtrTop);
-        //delete node and free
-        //free(get_thread(prev_id))
-       // current= my_id;
+        free(get_thread(prev_id)->stackPtrTop);       
     }
 }
 
@@ -288,17 +236,11 @@ int
 pet_thread_yield_to(pet_thread_id_t thread_id)
 {
     struct pet_thread *tgt;
-
     tgt  = get_thread(thread_id);
     if (tgt == NULL) return -1;
-    __yield_to(tgt);
-     
+    __yield_to(tgt);     
     return 0;
 }
-
-
-
-
 
 int
 pet_thread_schedule()
@@ -317,7 +259,6 @@ pet_thread_schedule()
             }
         }
     }while(pet_thread_ready_count>0);
-
     return 0;
 }
 
@@ -327,7 +268,6 @@ pet_thread_run()
     int pet_id;
     pet_id = pet_thread_schedule();
     printf("Pet Thread execution has finished\n");
-
     return 0;
 }
 	     
