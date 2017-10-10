@@ -110,6 +110,7 @@ pet_thread_init(void)
     INIT_LIST_HEAD(&readyQueue.node);
     master_thread = &master_dummy_thread;
     master_thread->thread_id = PET_MASTER_THREAD_ID;
+    master_thread->state = PRT_THREAD_READY;
     char * size = (master_thread->stackPtr + STACK_SIZE);
     pet_thread_ready_count  = 0;
     return 0;
@@ -158,19 +159,16 @@ pet_thread_join(pet_thread_id_t    thread_id,
 void
 pet_thread_exit(void * ret_val)
 {
-    get_thread(current)->state = PET_THREAD_STOPPED;
+    struct pet_thread *runningThread = get_thread(current);
+    runningThread->state = PET_THREAD_STOPPED;    
     pet_thread_ready_count--;
-
-    if(get_thread(current)->joinfrom != -1)
+    if(thread->joinfrom != -1)    
     {
-        struct pet_thread *joinThread = get_thread(get_thread(current)->joinfrom);
+        struct pet_thread *joinThread = get_thread(thread->joinfrom);
         joinThread->state= PET_THREAD_RUNNING;
-        __switch_to_stack(&joinThread->stackPtr,&get_thread(current)->stackPtr,joinThread->thread_id,current);
-
+        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
     }
-
     __abort_to_stack(&master_thread->stackPtr);
-
 }
 
 
@@ -234,7 +232,7 @@ void
 pet_thread_cleanup(pet_thread_id_t prev_id,
 		   pet_thread_id_t my_id)
 {
-    if(get_thread(prev_id)->state==PET_THREAD_STOPPED)
+    if(get_thread(my_id)->state==PET_THREAD_STOPPED)    // Changed by Akhil - Do not change this. This has to be my_id.
     {
         //free from stack top
         free(get_thread(prev_id)->stackPtr);
