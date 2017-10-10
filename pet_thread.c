@@ -149,7 +149,7 @@ pet_thread_join(pet_thread_id_t    thread_id,
     
     cur_thread->state = PET_THREAD_BLOCKED;
     tgt_thread->state = PET_THREAD_RUNNING;
-    __switch_to_stack(&tgt_thread->stackPtr,&cur_thread->stackPtr,tgt_thread->thread_id,cur_thread->thread_id);
+    __switch_to_stack(&tgt_thread->stackPtr,&cur_thread->stackPtr,cur_thread->thread_id,tgt_thread->thread_id);
     return 0;
 
 
@@ -166,7 +166,7 @@ pet_thread_exit(void * ret_val)
     {
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
         joinThread->state= PET_THREAD_RUNNING;
-        __switch_to_stack(&joinThread->stackPtr,&runningThread->stackPtr,joinThread->thread_id,runningThread->thread_id);
+        __switch_to_stack(&joinThread->stackPtr,&runningThread->stackPtr,runningThread->thread_id,joinThread->thread_id);
     }
     __abort_to_stack(&master_thread->stackPtr);
 }
@@ -187,7 +187,7 @@ __thread_invoker(struct pet_thread * thread)
         joinThread->state= PET_THREAD_RUNNING;
         //pet_thread_ready_count++;
 
-        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
+        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,thread->thread_id,joinThread->thread_id);
 
     }
     __abort_to_stack(&master_thread->stackPtr);
@@ -232,13 +232,10 @@ void
 pet_thread_cleanup(pet_thread_id_t prev_id,
 		   pet_thread_id_t my_id)
 {
-    if(get_thread(my_id)->state==PET_THREAD_STOPPED)    // Changed by Akhil - Do not change this. This has to be my_id.
+    if(get_thread(prev_id)->state==PET_THREAD_STOPPED)
     {
         //free from stack top
         free(get_thread(prev_id)->stackPtr);
-        //delete node and free
-        //free(get_thread(prev_id));
-       // current= my_id;
     }
 }
 
@@ -253,7 +250,7 @@ __yield_to(struct pet_thread * tgt_thread)
     runningThread->state = PET_THREAD_READY;
     tgt_thread->state = PET_THREAD_RUNNING;
     current = tgt_thread->thread_id;
-    __switch_to_stack(&tgt_thread->stackPtr,&runningThread->stackPtr,tgt_thread->thread_id,runningThread->thread_id);
+    __switch_to_stack(&tgt_thread->stackPtr,&runningThread->stackPtr,runningThread->thread_id,tgt_thread->thread_id);
 
 }
 
@@ -282,7 +279,7 @@ pet_thread_schedule()
             {
                 current = tmp->thread_id;
                 tmp->state = PET_THREAD_RUNNING;
-                __switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,tmp->thread_id,master_thread->thread_id);
+                __switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,master_thread->thread_id,tmp->thread_id);
             }
         }
     }while(pet_thread_ready_count>0);
