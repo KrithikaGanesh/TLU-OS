@@ -4,11 +4,11 @@ AR  = ar
 CFLAGS = -g
 LFLAGS = -lpthread
 
-TGT = driver
+TGT = RRdriver
 
 OBJS =  pet_thread.o \
 	pet_thread_hw.o \
-	driver.o     \
+	RRdriver.o     \
 	pet_hashtable.o \
 	pet_log.o \
 
@@ -35,10 +35,9 @@ build = \
 	$(call build,AR,$(AR) rcs $@ $^)
 
 
-all: $(TGT)
-
-driver : $(OBJS)
-
+all: RRdriver
+RRdriver : $(OBJS)
 
 clean: 
 	rm -f *.o $(OBJS) $(TGT)
+

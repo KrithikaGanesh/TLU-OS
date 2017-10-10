@@ -50,6 +50,7 @@ struct pet_thread {
     pet_thread_id_t thread_id;
     thread_run_state_t state;
     char * stackPtr;
+    char *stackPtrTop;
     pet_thread_fn_t function;
     void * args;
     struct list_head node;
@@ -82,7 +83,6 @@ get_thread(pet_thread_id_t thread_id)
     struct list_head *pos;
     struct pet_thread *tmp;
     list_for_each(pos,&readyQueue.node) {
-       //tmp = (struct pet_thread *)malloc(sizeof(struct pet_thread));
        tmp = list_entry(pos,struct pet_thread,node);
        if(tmp->thread_id == thread_id) {
           return tmp;
@@ -109,8 +109,8 @@ pet_thread_init(void)
 {
     INIT_LIST_HEAD(&readyQueue.node);
     master_thread = &master_dummy_thread;
+    master_thread->state= PET_THREAD_READY;
     master_thread->thread_id = PET_MASTER_THREAD_ID;
-    master_thread->state = PRT_THREAD_READY;
     char * size = (master_thread->stackPtr + STACK_SIZE);
     pet_thread_ready_count  = 0;
     return 0;
@@ -144,11 +144,12 @@ pet_thread_join(pet_thread_id_t    thread_id,
     struct pet_thread * cur_thread;
     cur_thread = get_thread(current);
     tgt_thread = get_thread(thread_id);
-    if (tgt_thread == NULL) {return (-1);}
+    if (tgt_thread == NULL && tgt_thread->state==PET_THREAD_STOPPED) {return (-1);}
     tgt_thread->joinfrom = cur_thread->thread_id;
     
     cur_thread->state = PET_THREAD_BLOCKED;
     tgt_thread->state = PET_THREAD_RUNNING;
+    pet_thread_ready_count--;
     __switch_to_stack(&tgt_thread->stackPtr,&cur_thread->stackPtr,cur_thread->thread_id,tgt_thread->thread_id);
     return 0;
 
@@ -159,16 +160,30 @@ pet_thread_join(pet_thread_id_t    thread_id,
 void
 pet_thread_exit(void * ret_val)
 {
-    struct pet_thread *runningThread = get_thread(current);
-    runningThread->state = PET_THREAD_STOPPED;    
-    pet_thread_ready_count--;
-    if(thread->joinfrom != -1)    
+    struct pet_thread *current_exit=get_thread(current);
+    current_exit->state = PET_THREAD_STOPPED;
+
+    if(current_exit->joinfrom != -1)
     {
-        struct pet_thread *joinThread = get_thread(thread->joinfrom);
-        joinThread->state= PET_THREAD_RUNNING;
-        __switch_to_stack(&joinThread->stackPtr,&runningThread->stackPtr,runningThread->thread_id,joinThread->thread_id);
+        DEBUG("Exit and Inform Joining Thread\n");
+        struct pet_thread *joinThread = current_exit->joinfrom;
+        joinThread->state= PET_THREAD_READY;
+        pet_thread_ready_count++;
+
+        current=current_exit->joinfrom;
+        __switch_to_stack(&joinThread->stackPtr,&current_exit->stackPtr,current_exit->thread_id,joinThread->thread_id);
+
     }
-    __abort_to_stack(&master_thread->stackPtr);
+    else{
+        DEBUG("Exiting without any joining thread\n");
+        __switch_to_stack(&master_thread->stackPtr,&current_exit->stackPtr,current_exit->thread_id,master_thread->thread_id);
+
+
+    }
+
+
+    //__abort_to_stack(&master_thread->stackPtr);
+
 }
 
 
@@ -179,20 +194,25 @@ __thread_invoker(struct pet_thread * thread)
 
     int retVal = thread->function(thread->args);
     thread->state = PET_THREAD_STOPPED;
-    pet_thread_ready_count--;
 
     if(thread->joinfrom != -1)
     {
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
-        joinThread->state= PET_THREAD_RUNNING;
-        //pet_thread_ready_count++;
+        joinThread->state= PET_THREAD_READY;
+        current= thread->joinfrom;
+        pet_thread_ready_count++;
 
-        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,thread->thread_id,joinThread->thread_id);
+        //__switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,thread->thread_id, joinThread->thread_id);
 
     }
-    __abort_to_stack(&master_thread->stackPtr);
+    //__abort_to_stack(&master_thread->stackPtr);
+    //else{
 
-    //__switch_to_stack(&master_thread->stackPtr,&get_thread(current)->stackPtr,master_thread->thread_id,current);
+        __switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,thread->thread_id,master_thread->thread_id);
+
+
+    //}
+
 
 
 }
@@ -208,8 +228,8 @@ pet_thread_create(pet_thread_id_t * thread_id,
     new_thread->thread_id = (pet_thread_id_t)thread_ids++;
     new_thread->state = PET_THREAD_READY;
     new_thread->joinfrom = -1;
-    new_thread->stackPtr = calloc(1,STACK_SIZE);
-    char * sptr = (new_thread->stackPtr + STACK_SIZE - sizeof(struct exec_ctx));    
+    new_thread->stackPtrTop = calloc(1,STACK_SIZE);
+    char * sptr = (new_thread->stackPtrTop + STACK_SIZE - sizeof(struct exec_ctx));
     new_thread->stackPtr = sptr;
     struct exec_ctx *cont = sptr ;
     cont->rip = (uint64_t)__thread_invoker;
@@ -232,10 +252,15 @@ void
 pet_thread_cleanup(pet_thread_id_t prev_id,
 		   pet_thread_id_t my_id)
 {
+    if (prev_id == PET_MASTER_THREAD_ID) return;
     if(get_thread(prev_id)->state==PET_THREAD_STOPPED)
     {
         //free from stack top
-        free(get_thread(prev_id)->stackPtr);
+        DEBUG ("Previous Thread Stopped \n");
+        free(get_thread(prev_id)->stackPtrTop);
+        //delete node and free
+        //free(get_thread(prev_id))
+       // current= my_id;
     }
 }
 
@@ -246,6 +271,10 @@ static void
 __yield_to(struct pet_thread * tgt_thread)
 {
 
+    if (tgt_thread == NULL ) {
+        DEBUG ("NOT YIELDING TO NULL TARGET\n");
+        return;
+    }
     struct pet_thread *runningThread = get_thread(current);
     runningThread->state = PET_THREAD_READY;
     tgt_thread->state = PET_THREAD_RUNNING;
@@ -258,7 +287,11 @@ __yield_to(struct pet_thread * tgt_thread)
 int
 pet_thread_yield_to(pet_thread_id_t thread_id)
 {
-    __yield_to(get_thread(thread_id));
+    struct pet_thread *tgt;
+
+    tgt  = get_thread(thread_id);
+    if (tgt == NULL) return -1;
+    __yield_to(tgt);
      
     return 0;
 }
@@ -279,6 +312,7 @@ pet_thread_schedule()
             {
                 current = tmp->thread_id;
                 tmp->state = PET_THREAD_RUNNING;
+                pet_thread_ready_count--;
                 __switch_to_stack(&tmp->stackPtr,&master_thread->stackPtr,master_thread->thread_id,tmp->thread_id);
             }
         }
