@@ -166,7 +166,7 @@ pet_thread_exit(void * ret_val)
     {
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
         joinThread->state= PET_THREAD_RUNNING;
-        __switch_to_stack(&joinThread->stackPtr,&thread->stackPtr,joinThread->thread_id,thread->thread_id);
+        __switch_to_stack(&joinThread->stackPtr,&runningThread->stackPtr,joinThread->thread_id,runningThread->thread_id);
     }
     __abort_to_stack(&master_thread->stackPtr);
 }
