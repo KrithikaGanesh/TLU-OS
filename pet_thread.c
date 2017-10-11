@@ -169,6 +169,7 @@ __thread_invoker(struct pet_thread * thread)
         struct pet_thread *joinThread = get_thread(thread->joinfrom);
         joinThread->state= PET_THREAD_READY;
         pet_thread_ready_count++;
+    }
 	__switch_to_stack(&master_thread->stackPtr,&thread->stackPtr,thread->thread_id,master_thread->thread_id);
 }
 
